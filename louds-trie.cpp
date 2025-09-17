@@ -188,6 +188,11 @@ class TrieImpl {
   void add(const string &key);
   void build();
   int64_t lookup(const string &query) const;
+  // Friend declaration for merge_trie access
+  friend class Trie;
+  
+  // Helper to collect all keys efficiently
+  void collect_all_keys(vector<string>& result) const;
 
   uint64_t n_keys() const {
     return n_keys_;
@@ -329,6 +334,75 @@ int64_t TrieImpl::lookup(const string &query) const {
   return level.offset + level.outs.rank(node_id);
 }
 
+void TrieImpl::collect_all_keys(vector<string>& result) const {
+  if (n_keys_ == 0) return;
+  
+  struct StackNode {
+    uint64_t node_id;
+    uint64_t level;
+    string prefix;
+  };
+  
+  vector<StackNode> stack;
+  
+  // Check for empty string
+  if (levels_[0].outs.get(0)) {
+    result.push_back("");
+  }
+  
+  // Start from root
+  stack.push_back({0, 0, ""});
+  
+  while (!stack.empty()) {
+    StackNode current = stack.back();
+    stack.pop_back();
+    
+    // Check if current node is a terminal (except root)
+    if (current.level > 0 && current.level < levels_.size()) {
+      if (levels_[current.level].outs.get(current.node_id)) {
+        result.push_back(current.prefix);
+      }
+    }
+    
+    // Process children
+    if (current.level + 1 < levels_.size()) {
+      const Level& next_level = levels_[current.level + 1];
+      uint64_t child_start, child_end;
+      
+      if (current.level == 0) {
+        child_start = 0;
+        child_end = next_level.labels.size();
+      } else {
+        const Level& curr_level = levels_[current.level];
+        uint64_t node_pos = current.node_id;
+        
+        // Check if has children
+        if (node_pos + 1 >= curr_level.louds.n_bits || curr_level.louds.get(node_pos + 1) == 1) {
+          continue; // No children
+        }
+        
+        // Calculate children range
+        uint64_t rank_before = curr_level.louds.rank(node_pos + 1);
+        child_start = (rank_before > 0) ? next_level.louds.select(rank_before - 1) + 1 - rank_before : 0;
+        
+        // Find end of children
+        uint64_t next_pos = node_pos + 1;
+        while (next_pos < curr_level.louds.n_bits && curr_level.louds.get(next_pos) == 0) {
+          next_pos++;
+        }
+        uint64_t rank_after = curr_level.louds.rank(next_pos);
+        child_end = (rank_after > 0) ? next_level.louds.select(rank_after - 1) + 1 - rank_after : next_level.labels.size();
+      }
+      
+      // Add children to stack (reverse order for correct traversal)
+      for (int64_t i = child_end - 1; i >= (int64_t)child_start; --i) {
+        string new_prefix = current.prefix + (char)next_level.labels[i];
+        stack.push_back({(uint64_t)i, current.level + 1, new_prefix});
+      }
+    }
+  }
+}
+
 Trie::Trie() : impl_(new TrieImpl) {}
 
 Trie::~Trie() {
@@ -357,6 +431,39 @@ uint64_t Trie::n_nodes() const {
 
 uint64_t Trie::size() const {
   return impl_->size();
+}
+
+Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
+  // Collect all keys from both tries
+  vector<string> keys1, keys2;
+  trie1.impl_->collect_all_keys(keys1);
+  trie2.impl_->collect_all_keys(keys2);
+  
+  // Create merged trie
+  Trie* merged = new Trie();
+  
+  // Merge sorted key lists efficiently
+  size_t i = 0, j = 0;
+  while (i < keys1.size() && j < keys2.size()) {
+    if (keys1[i] < keys2[j]) {
+      merged->add(keys1[i++]);
+    } else if (keys1[i] > keys2[j]) {
+      merged->add(keys2[j++]);
+    } else {
+      // Duplicate - add once
+      merged->add(keys1[i]);
+      i++; j++;
+    }
+  }
+  
+  // Add remaining keys
+  while (i < keys1.size()) merged->add(keys1[i++]);
+  while (j < keys2.size()) merged->add(keys2[j++]);
+  
+  // Build LOUDS structure
+  merged->build();
+  
+  return merged;
 }
 
 }  // namespace louds
