@@ -342,70 +342,79 @@ void TrieImpl::collect_all_keys(vector<string>& result) const {
     result.push_back("");
   }
   
-  // Recursive helper function
-  function<void(uint64_t, uint64_t, string&)> dfs = 
-    [&](uint64_t node_id, uint64_t level, string& prefix) {
-    
-    // Check if terminal node
-    if (level > 0 && levels_[level].outs.get(node_id)) {
-      result.push_back(prefix);
-    }
-    
-    if (level + 1 >= levels_.size()) return;
-    
-    const Level& curr = levels_[level];
-    const Level& next = levels_[level + 1];
-    
-    if (level == 0) {
-      // Root: all nodes in level 1 are children
-      for (uint64_t i = 0; i < next.labels.size(); ++i) {
-        prefix.push_back(next.labels[i]);
-        dfs(i, 1, prefix);
-        prefix.pop_back();
-      }
-      return;
-    }
-    
-    // Find node's position in LOUDS
-    // LOUDS position = node_id + rank(node_id)
-    uint64_t louds_pos = node_id + curr.louds.rank(node_id);
-    
-    // Check for children (0s after this node's 1)
-    if (louds_pos + 1 >= curr.louds.n_bits || 
-        curr.louds.get(louds_pos + 1) == 1) {
-      return; // No children
-    }
-    
-    // Count children
-    uint64_t child_count = 0;
-    uint64_t pos = louds_pos + 1;
-    while (pos < curr.louds.n_bits && curr.louds.get(pos) == 0) {
-      child_count++;
-      pos++;
-    }
-    
-    // Find first child's index
-    uint64_t ones_before = curr.louds.rank(louds_pos + 1);
-    uint64_t first_child = 0;
-    
-    if (ones_before > 0) {
-      uint64_t parent_end_pos = next.louds.select(ones_before - 1);
-      first_child = parent_end_pos + 1 - ones_before;
-    }
-    
-    // Process children
-    for (uint64_t i = 0; i < child_count; ++i) {
-      uint64_t child_id = first_child + i;
-      if (child_id < next.labels.size()) {
-        prefix.push_back(next.labels[child_id]);
-        dfs(child_id, level + 1, prefix);
-        prefix.pop_back();
-      }
-    }
+  // Helper function for DFS traversal
+  struct TraversalState {
+    uint64_t node_id;    // Index in labels array
+    uint64_t level;      // Current level
+    string prefix;       // Key built so far
   };
   
-  string prefix;
-  dfs(0, 0, prefix);
+  vector<TraversalState> stack;
+  
+  // For root, process all children in level 1
+  if (levels_.size() > 1) {
+    for (uint64_t i = 0; i < levels_[1].labels.size(); ++i) {
+      stack.push_back({i, 1, string(1, levels_[1].labels[i])});
+    }
+  }
+  
+  while (!stack.empty()) {
+    TraversalState state = stack.back();
+    stack.pop_back();
+    
+    // Check if this node represents a complete key
+    if (state.level < levels_.size() && 
+        levels_[state.level].outs.get(state.node_id)) {
+      result.push_back(state.prefix);
+    }
+    
+    // Find children of this node
+    if (state.level + 1 < levels_.size()) {
+      const Level& curr = levels_[state.level];
+      const Level& next = levels_[state.level + 1];
+      
+      // Calculate LOUDS position for this node
+      // node_id + number of 1s before node_id
+      uint64_t louds_pos = state.node_id + curr.louds.rank(state.node_id);
+      
+      // Check if node has children (look for 0s after the node's 1)
+      if (louds_pos + 1 < curr.louds.n_bits && 
+          curr.louds.get(louds_pos + 1) == 0) {
+        
+        // Count children (consecutive 0s)
+        uint64_t child_count = 0;
+        uint64_t pos = louds_pos + 1;
+        while (pos < curr.louds.n_bits && curr.louds.get(pos) == 0) {
+          child_count++;
+          pos++;
+        }
+        
+        // Find first child index in next level
+        // Use rank to count 1s before this node's children
+        uint64_t ones_before = curr.louds.rank(louds_pos + 1);
+        
+        // First child position in next level
+        uint64_t first_child;
+        if (ones_before == 0) {
+          first_child = 0;
+        } else {
+          // Position of ones_before-th 1 in next level
+          uint64_t parent_end = next.louds.select(ones_before - 1);
+          // Children start after parent end position minus the number of parents
+          first_child = parent_end + 1 - ones_before;
+        }
+        
+        // Add all children to stack
+        for (uint64_t i = 0; i < child_count; ++i) {
+          uint64_t child_id = first_child + i;
+          if (child_id < next.labels.size()) {
+            string child_prefix = state.prefix + (char)next.labels[child_id];
+            stack.push_back({child_id, state.level + 1, child_prefix});
+          }
+        }
+      }
+    }
+  }
 }
 
 Trie::Trie() : impl_(new TrieImpl) {}
