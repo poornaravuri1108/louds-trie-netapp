@@ -337,70 +337,75 @@ int64_t TrieImpl::lookup(const string &query) const {
 void TrieImpl::collect_all_keys(vector<string>& result) const {
   if (n_keys_ == 0) return;
   
-  struct StackNode {
-    uint64_t node_id;
-    uint64_t level;
-    string prefix;
-  };
-  
-  vector<StackNode> stack;
-  
   // Check for empty string
   if (levels_[0].outs.get(0)) {
     result.push_back("");
   }
   
-  // Start from root
-  stack.push_back({0, 0, ""});
-  
-  while (!stack.empty()) {
-    StackNode current = stack.back();
-    stack.pop_back();
+  // Recursive helper function
+  function<void(uint64_t, uint64_t, string&)> dfs = 
+    [&](uint64_t node_id, uint64_t level, string& prefix) {
     
-    // Check if current node is a terminal (except root)
-    if (current.level > 0 && current.level < levels_.size()) {
-      if (levels_[current.level].outs.get(current.node_id)) {
-        result.push_back(current.prefix);
+    // Check if terminal node
+    if (level > 0 && levels_[level].outs.get(node_id)) {
+      result.push_back(prefix);
+    }
+    
+    if (level + 1 >= levels_.size()) return;
+    
+    const Level& curr = levels_[level];
+    const Level& next = levels_[level + 1];
+    
+    if (level == 0) {
+      // Root: all nodes in level 1 are children
+      for (uint64_t i = 0; i < next.labels.size(); ++i) {
+        prefix.push_back(next.labels[i]);
+        dfs(i, 1, prefix);
+        prefix.pop_back();
       }
+      return;
+    }
+    
+    // Find node's position in LOUDS
+    // LOUDS position = node_id + rank(node_id)
+    uint64_t louds_pos = node_id + curr.louds.rank(node_id);
+    
+    // Check for children (0s after this node's 1)
+    if (louds_pos + 1 >= curr.louds.n_bits || 
+        curr.louds.get(louds_pos + 1) == 1) {
+      return; // No children
+    }
+    
+    // Count children
+    uint64_t child_count = 0;
+    uint64_t pos = louds_pos + 1;
+    while (pos < curr.louds.n_bits && curr.louds.get(pos) == 0) {
+      child_count++;
+      pos++;
+    }
+    
+    // Find first child's index
+    uint64_t ones_before = curr.louds.rank(louds_pos + 1);
+    uint64_t first_child = 0;
+    
+    if (ones_before > 0) {
+      uint64_t parent_end_pos = next.louds.select(ones_before - 1);
+      first_child = parent_end_pos + 1 - ones_before;
     }
     
     // Process children
-    if (current.level + 1 < levels_.size()) {
-      const Level& next_level = levels_[current.level + 1];
-      uint64_t child_start, child_end;
-      
-      if (current.level == 0) {
-        child_start = 0;
-        child_end = next_level.labels.size();
-      } else {
-        const Level& curr_level = levels_[current.level];
-        uint64_t node_pos = current.node_id;
-        
-        // Check if has children
-        if (node_pos + 1 >= curr_level.louds.n_bits || curr_level.louds.get(node_pos + 1) == 1) {
-          continue; // No children
-        }
-        
-        // Calculate children range
-        uint64_t rank_before = curr_level.louds.rank(node_pos + 1);
-        child_start = (rank_before > 0) ? next_level.louds.select(rank_before - 1) + 1 - rank_before : 0;
-        
-        // Find end of children
-        uint64_t next_pos = node_pos + 1;
-        while (next_pos < curr_level.louds.n_bits && curr_level.louds.get(next_pos) == 0) {
-          next_pos++;
-        }
-        uint64_t rank_after = curr_level.louds.rank(next_pos);
-        child_end = (rank_after > 0) ? next_level.louds.select(rank_after - 1) + 1 - rank_after : next_level.labels.size();
-      }
-      
-      // Add children to stack (reverse order for correct traversal)
-      for (int64_t i = child_end - 1; i >= (int64_t)child_start; --i) {
-        string new_prefix = current.prefix + (char)next_level.labels[i];
-        stack.push_back({(uint64_t)i, current.level + 1, new_prefix});
+    for (uint64_t i = 0; i < child_count; ++i) {
+      uint64_t child_id = first_child + i;
+      if (child_id < next.labels.size()) {
+        prefix.push_back(next.labels[child_id]);
+        dfs(child_id, level + 1, prefix);
+        prefix.pop_back();
       }
     }
-  }
+  };
+  
+  string prefix;
+  dfs(0, 0, prefix);
 }
 
 Trie::Trie() : impl_(new TrieImpl) {}
