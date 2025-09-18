@@ -118,8 +118,8 @@ void test_merge_functionality() {
     
     // Build trie2 with overlapping prefixes
     trie2.add("car");  // duplicate
-    trie2.add("cargo");
     trie2.add("career");
+    trie2.add("cargo");
     trie2.build();
     
     // Merge
