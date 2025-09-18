@@ -704,6 +704,7 @@ Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
         ++out_impl.n_nodes_;                  // one new node created
       }
     }
+    curr.swap(next); 
   }
 
   out_impl.build(); // rank/select + size & cumulative offsets
@@ -782,6 +783,7 @@ Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
         if (take2) ++b2;
       }
     }
+    curr.swap(next);  
   }
 
   out_impl.build();
