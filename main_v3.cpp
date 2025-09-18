@@ -165,7 +165,8 @@ void test_common_prefixes() {
     trie2.build();
     
     Trie* merged1 = Trie::merge_trie(trie1, trie2);
-    std::vector<std::string> keys = merged1->get_all_keys();
+    Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
+    std::vector<std::string> keys = merged3->get_all_keys();
     std::cout << "Keys in merged trie:" << std::endl;
     for (const auto& key : keys) {
         std::cout << "  " << key << std::endl;
@@ -181,10 +182,12 @@ void test_common_prefixes() {
     };
     
     verify_keys(merged1, expected, {});
+    verify_keys(merged3, expected, {});
     
     assert(merged1->n_keys() == 9);
     
     delete merged1;
+    delete merged3;
     cout << "Common prefixes test passed" << endl;
 }
 
