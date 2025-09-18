@@ -264,6 +264,8 @@ class TrieImpl {
 
   // Friend declaration for merge functions
   friend Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2);
+  friend Trie* Trie::merge_trie_direct_quadratic(const Trie& trie1, const Trie& trie2);
+  friend Trie* Trie::merge_trie_direct_linear(const Trie& trie1, const Trie& trie2);
 };
 
 TrieImpl::TrieImpl()
