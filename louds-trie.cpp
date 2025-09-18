@@ -9,7 +9,7 @@
 
 #include <cassert>
 #include <vector>
-// #include <algorithm>
+#include <algorithm>
 
 namespace louds {
 namespace {
