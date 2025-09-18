@@ -11,28 +11,24 @@ using namespace std;
 using namespace std::chrono;
 
 void test_merge_functionality() {
-  cout << "\n=== Testing Merge Functionality ===" << endl;
+  cout << "Testing Merge Functionality" << endl;
   
-  // Test 1: Basic merge with disjoint sets
   {
-    cout << "\nTest 1: Basic merge with disjoint sets" << endl;
+    cout << "Test 1: Basic merge with disjoint sets" << endl;
     louds::Trie trie1, trie2;
     
-    // Build trie1
     trie1.add("apple");
     trie1.add("banana");
     trie1.add("cherry");
     trie1.build();
     cout << "Trie1: " << trie1.n_keys() << " keys, " << trie1.n_nodes() << " nodes" << endl;
     
-    // Build trie2
     trie2.add("date");
     trie2.add("elderberry");
     trie2.add("fig");
     trie2.build();
     cout << "Trie2: " << trie2.n_keys() << " keys, " << trie2.n_nodes() << " nodes" << endl;
     
-    // Merge
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     cout << "Merged: " << merged->n_keys() << " keys, " << merged->n_nodes() << " nodes" << endl;
 
@@ -44,95 +40,109 @@ void test_merge_functionality() {
     }
     cout << endl;
     
-    // Verify all keys are present
     assert(merged->lookup("apple") != -1);
     assert(merged->lookup("banana") != -1);
     assert(merged->lookup("cherry") != -1);
     assert(merged->lookup("date") != -1);
     assert(merged->lookup("elderberry") != -1);
     assert(merged->lookup("fig") != -1);
-    assert(merged->lookup("grape") == -1);  // Should not exist
+    assert(merged->lookup("grape") == -1);
     
     cout << "✓ Test 1 passed!" << endl;
     delete merged;
   }
   
-  // Test 2: Merge with overlapping keys
   {
-    cout << "\nTest 2: Merge with overlapping keys" << endl;
+    cout << "Test 2: Merge with overlapping keys" << endl;
     louds::Trie trie1, trie2;
     
-    // Build trie1
     trie1.add("apple");
     trie1.add("banana");
     trie1.add("cherry");
     trie1.build();
     
-    // Build trie2 with some overlapping keys
-    trie2.add("banana");  // duplicate
-    trie2.add("cherry");  // duplicate
+    trie2.add("banana");
+    trie2.add("cherry");
     trie2.add("date");
     trie2.build();
     
-    // Merge
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     cout << "Merged: " << merged->n_keys() << " keys (should be 4)" << endl;
+    
+    vector<string> merged_keys = merged->get_all_keys();
+    cout << "Keys in merged trie: ";
+    for (size_t i = 0; i < merged_keys.size(); ++i) {
+      if (i > 0) cout << ", ";
+      cout << "\"" << merged_keys[i] << "\"";
+    }
+    cout << endl;
+
     assert(merged->n_keys() == 4);
     
-    // Verify all unique keys are present
     assert(merged->lookup("apple") != -1);
     assert(merged->lookup("banana") != -1);
     assert(merged->lookup("cherry") != -1);
     assert(merged->lookup("date") != -1);
     
-    cout << "✓ Test 2 passed!" << endl;
+    cout << "Test 2 passed!" << endl;
     delete merged;
   }
   
-  // Test 3: Merge with empty trie
   {
-    cout << "\nTest 3: Merge with empty trie" << endl;
+    cout << "Test 3: Merge with empty trie" << endl;
     louds::Trie trie1, trie2;
     
-    // Build non-empty trie
     trie1.add("alpha");
     trie1.add("beta");
     trie1.build();
     
-    // Build empty trie
+    trie2.build();
     trie2.build();
     
-    // Merge non-empty with empty
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
+
+    cout << "Merged: " << merged->n_keys() << " keys (should be 2)" << endl;
+    vector<string> merged_keys = merged->get_all_keys();
+    cout << "Keys in merged trie: ";
+    for (size_t i = 0; i < merged_keys.size(); ++i) {
+      if (i > 0) cout << ", ";
+      cout << "\"" << merged_keys[i] << "\"";
+    }
+    cout << endl;
+    
     assert(merged->n_keys() == 2);
     assert(merged->lookup("alpha") != -1);
     assert(merged->lookup("beta") != -1);
     
-    cout << "✓ Test 3 passed!" << endl;
+    cout << "Test 3 passed!" << endl;
     delete merged;
   }
   
-  // Test 4: Common prefixes
   {
-    cout << "\nTest 4: Common prefixes" << endl;
+    cout << "Test 4: Common prefixes" << endl;
     louds::Trie trie1, trie2;
     
-    // Build trie1 with common prefixes
+    trie1.add("car");
     trie1.add("car");
     trie1.add("card");
     trie1.add("care");
     trie1.add("careful");
     trie1.build();
     
-    // Build trie2 with overlapping prefixes
-    trie2.add("car");  // duplicate
+    trie2.add("car");
     trie2.add("career");
     trie2.add("cargo");
     trie2.build();
     
-    // Merge
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     cout << "Merged: " << merged->n_keys() << " keys, " << merged->n_nodes() << " nodes" << endl;
+    vector<string> merged_keys = merged->get_all_keys();
+    cout << "Keys in merged trie: ";
+    for (size_t i = 0; i < merged_keys.size(); ++i) {
+      if (i > 0) cout << ", ";
+      cout << "\"" << merged_keys[i] << "\"";
+    }
+    cout << endl;
     assert(merged->n_keys() == 6);  // car, card, care, careful, cargo, career
 
     vector<string> merged_keys = merged->get_all_keys();
@@ -143,25 +153,22 @@ void test_merge_functionality() {
     }
     cout << endl;
     
-    // Verify all keys
     assert(merged->lookup("car") != -1);
     assert(merged->lookup("card") != -1);
     assert(merged->lookup("care") != -1);
     assert(merged->lookup("careful") != -1);
     assert(merged->lookup("cargo") != -1);
     assert(merged->lookup("career") != -1);
-    assert(merged->lookup("cart") == -1);  // Should not exist
+    assert(merged->lookup("cart") == -1);  
     
-    cout << "✓ Test 4 passed!" << endl;
+    cout << "Test 4 passed!" << endl;
     delete merged;
   }
   
-  // Test 5: Performance test with larger dataset
   {
-    cout << "\nTest 5: Performance test" << endl;
+    cout << "Test 5: Performance test" << endl;
     louds::Trie trie1, trie2;
     
-    // Generate test data for trie1
     vector<string> keys1;
     for (int i = 0; i < 1000; i += 2) {
       stringstream ss;
@@ -170,14 +177,12 @@ void test_merge_functionality() {
     }
     sort(keys1.begin(), keys1.end());
     
-    // Generate test data for trie2
     vector<string> keys2;
     for (int i = 1; i < 1000; i += 2) {
       stringstream ss;
       ss << "key" << i;
       keys2.push_back(ss.str());
     }
-    // Add some duplicates
     for (int i = 100; i < 200; i += 2) {
       stringstream ss;
       ss << "key" << i;
@@ -185,7 +190,6 @@ void test_merge_functionality() {
     }
     sort(keys2.begin(), keys2.end());
     
-    // Build tries
     for (const string& key : keys1) {
       trie1.add(key);
     }
@@ -198,7 +202,6 @@ void test_merge_functionality() {
     trie2.build();
     cout << "Trie2: " << trie2.n_keys() << " keys" << endl;
     
-    // Measure merge time
     auto start = high_resolution_clock::now();
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     auto end = high_resolution_clock::now();
@@ -207,13 +210,12 @@ void test_merge_functionality() {
     cout << "Merged: " << merged->n_keys() << " keys in " << elapsed << " μs" << endl;
     cout << "Size: " << merged->size() << " bytes" << endl;
     
-    // Verify some lookups
     assert(merged->lookup("key100") != -1);
     assert(merged->lookup("key500") != -1);
     assert(merged->lookup("key999") != -1);
     assert(merged->lookup("key1000") == -1);
     
-    cout << "✓ Test 5 passed!" << endl;
+    cout << "Test 5 passed!" << endl;
     delete merged;
   }
   
@@ -223,13 +225,11 @@ void test_merge_functionality() {
 int main(int argc, char** argv) {
   ios_base::sync_with_stdio(false);
   
-  // If run with --test flag, run merge tests
   if (argc > 1 && string(argv[1]) == "--test") {
     test_merge_functionality();
     return 0;
   }
   
-  // Otherwise, run original main functionality
   cout << "Original LOUDS Trie Test (reading from stdin)" << endl;
   cout << "To test merge functionality, run with --test flag" << endl;
   
