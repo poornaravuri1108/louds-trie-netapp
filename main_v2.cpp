@@ -123,7 +123,6 @@ void test_merge_functionality() {
     louds::Trie trie1, trie2;
     
     trie1.add("car");
-    trie1.add("car");
     trie1.add("card");
     trie1.add("care");
     trie1.add("careful");
