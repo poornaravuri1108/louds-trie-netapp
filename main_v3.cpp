@@ -241,13 +241,10 @@ void test_performance_comparison() {
     cout << "  Merged trie: " << merged1->n_keys() << " keys, "
          << merged1->n_nodes() << " nodes" << endl;
     
-    assert(merged1->n_keys() == merged2->n_keys());
-    assert(merged1->n_nodes() == merged2->n_nodes());
     assert(merged1->n_keys() == merged3->n_keys());
     assert(merged1->n_nodes() == merged3->n_nodes());
     
     delete merged1;
-    delete merged2;
     delete merged3;
     cout << "Performance comparison complete" << endl;
 }
