@@ -10,6 +10,8 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
+#include <queue>
+#include <set>
 
 namespace louds {
 namespace {
@@ -232,7 +234,7 @@ void TrieImpl::add(const string &key) {
     levels_[0].outs.set(0, 1);
     ++levels_[1].offset;
     ++n_keys_;
-    // last_key_ = key;
+    last_key_ = key;
     return;
   }
   if (key.length() + 1 >= levels_.size()) {
@@ -468,6 +470,94 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
   }
   
   for (const string& key : merged_keys) {
+    merged->add(key);
+  }
+  merged->build();
+  
+  return merged;
+}
+
+Trie* Trie::merge_trie_efficient(const Trie& trie1, const Trie& trie2) {
+  Trie* merged = new Trie();
+  
+  struct TraversalNode {
+    uint64_t node_id;    
+    uint64_t level;      
+    uint64_t trie_idx;   
+    string path;         
+    
+    TraversalNode(uint64_t n, uint64_t l, uint64_t t, const string& p)
+      : node_id(n), level(l), trie_idx(t), path(p) {}
+  };
+  
+  auto cmp = [](const TraversalNode& a, const TraversalNode& b) {
+    if (a.path != b.path) return a.path > b.path;  
+    return a.trie_idx > b.trie_idx;  
+  };
+  priority_queue<TraversalNode, vector<TraversalNode>, decltype(cmp)> pq(cmp);
+  
+  pq.push(TraversalNode(0, 0, 0, ""));
+  pq.push(TraversalNode(0, 0, 1, ""));
+  
+  set<string> added_keys; 
+  vector<string> all_keys;
+  
+  const auto& levels1 = trie1.impl_->get_levels();
+  const auto& levels2 = trie2.impl_->get_levels();
+  
+  while (!pq.empty()) {
+    TraversalNode curr = pq.top();
+    pq.pop();
+    
+    if (!curr.path.empty() && curr.trie_idx == 1 && 
+        added_keys.find(curr.path) != added_keys.end()) {
+      continue;
+    }
+    
+    const vector<Level>& levels = (curr.trie_idx == 0) ? levels1 : levels2;
+    
+    if (curr.level > 0 && curr.level < levels.size()) {
+      const Level& level = levels[curr.level];
+      if (curr.node_id < level.outs.n_bits && level.outs.get(curr.node_id)) {
+        if (added_keys.find(curr.path) == added_keys.end()) {
+          all_keys.push_back(curr.path);
+          added_keys.insert(curr.path);
+        }
+      }
+    }
+    
+    if (curr.level + 1 < levels.size()) {
+      const Level& child_level = levels[curr.level + 1];
+      
+      uint64_t child_pos;
+      if (curr.node_id != 0) {
+        child_pos = child_level.louds.select(curr.node_id - 1) + 1;
+      } else {
+        child_pos = 0;
+      }
+      
+      uint64_t child_id = child_pos - curr.node_id;
+      
+      while (child_pos < child_level.louds.n_bits && 
+             !child_level.louds.get(child_pos)) {
+        if (child_id < child_level.labels.size()) {
+          char label = child_level.labels[child_id];
+          pq.push(TraversalNode(
+            child_id, 
+            curr.level + 1, 
+            curr.trie_idx, 
+            curr.path + label
+          ));
+        }
+        child_pos++;
+        child_id++;
+      }
+    }
+  }
+  
+  sort(all_keys.begin(), all_keys.end());
+  
+  for (const string& key : all_keys) {
     merged->add(key);
   }
   merged->build();
