@@ -631,7 +631,6 @@ Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
       if (p.h2) child_range(L2, lev, p.id2, b2, e2);
 
       append_parent_one(out_levels, lev, (pidx == 0));
-      append_parent_one(out_levels, lev, (pidx == 0));
 
       if (b1 == e1 && b2 == e2) {
         continue; 
