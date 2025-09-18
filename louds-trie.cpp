@@ -232,6 +232,7 @@ void TrieImpl::add(const string &key) {
     levels_[0].outs.set(0, 1);
     ++levels_[1].offset;
     ++n_keys_;
+    last_key_ = key;
     return;
   }
   if (key.length() + 1 >= levels_.size()) {
@@ -279,7 +280,7 @@ void TrieImpl::build() {
 
 int64_t TrieImpl::lookup(const string &query) const {
   if (query.length() >= levels_.size()) {
-    return false;
+    return -1;
   }
   uint64_t node_id = 0;
   for (uint64_t i = 0; i < query.length(); ++i) {
@@ -451,6 +452,9 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
   vector<string> keys1, keys2;
   trie1.impl_->collect_all_keys(keys1);
   trie2.impl_->collect_all_keys(keys2);
+
+  std::sort(keys1.begin(), keys1.end());
+  std::sort(keys2.begin(), keys2.end());
   
   // Step 2: Merge the two sorted lists (both are already sorted from LOUDS traversal)
   vector<string> merged_keys;
