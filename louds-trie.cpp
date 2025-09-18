@@ -1,16 +1,15 @@
 #include "louds-trie.hpp"
 
 #ifdef _MSC_VER
- #include <intrin.h>
- #include <immintrin.h>
+  #include <intrin.h>
+  #include <immintrin.h>
 #else  // _MSC_VER
- #include <x86intrin.h>
+  #include <x86intrin.h>
 #endif  // _MSC_VER
 
 #include <cassert>
 #include <vector>
 #include <algorithm>
-
 
 namespace louds {
 namespace {
@@ -180,9 +179,7 @@ uint64_t Level::size() const {
   return louds.size() + outs.size() + labels.size();
 }
 
-inline void child_range(const std::vector<Level>& Lv,
-  uint64_t lev, uint64_t node_id,
-  uint64_t& b, uint64_t& e) {
+inline void child_range(const std::vector<Level>& Lv, uint64_t lev, uint64_t node_id, uint64_t& b, uint64_t& e) {
   b = e = 0;
   if (lev + 1 >= Lv.size()) return;
   const Level& ch = Lv[lev + 1];
@@ -253,12 +250,10 @@ class TrieImpl {
   uint64_t size_;
   string last_key_;
 
-  void collect_keys_recursive(vector<string>& keys, uint64_t node_id, 
-    uint64_t level, string& prefix) const;
+  void collect_keys_recursive(vector<string>& keys, uint64_t node_id, uint64_t level, string& prefix) const;
 
   // Friend declaration for merge functions
   friend Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2);
-  friend Trie* Trie::merge_trie_direct_quadratic(const Trie& trie1, const Trie& trie2);
   friend Trie* Trie::merge_trie_direct_linear(const Trie& trie1, const Trie& trie2);
 };
 
@@ -385,8 +380,44 @@ int64_t TrieImpl::lookup(const string &query) const {
   return level.offset + level.outs.rank(node_id);
 }
 
-void TrieImpl::collect_keys_recursive(vector<string>& keys, uint64_t node_id, 
-  uint64_t level_idx, string& prefix) const {
+Trie::Trie() : impl_(new TrieImpl) {}
+
+Trie::~Trie() {
+  delete impl_;
+}
+
+void Trie::add(const string &key) {
+  impl_->add(key);
+}
+
+void Trie::build() {
+  impl_->build();
+}
+
+int64_t Trie::lookup(const string &query) const {
+  return impl_->lookup(query);
+}
+
+uint64_t Trie::n_keys() const {
+  return impl_->n_keys();
+}
+
+uint64_t Trie::n_nodes() const {
+  return impl_->n_nodes();
+}
+
+uint64_t Trie::size() const {
+  return impl_->size();
+}
+
+std::vector<std::string> Trie::get_all_keys() const {
+  std::vector<std::string> keys;
+  impl_->collect_all_keys(keys);
+  std::sort(keys.begin(), keys.end());
+  return keys;
+}
+
+void TrieImpl::collect_keys_recursive(vector<string>& keys, uint64_t node_id, uint64_t level_idx, string& prefix) const {
   
   if (level_idx == 0 && levels_[0].outs.get(0)) {
     keys.push_back("");
@@ -441,44 +472,27 @@ void TrieImpl::collect_all_keys(vector<string>& keys) const {
   collect_keys_recursive(keys, 0, 0, prefix);
 }
 
-Trie::Trie() : impl_(new TrieImpl) {}
+/*
+Approach 1: Extract–Merge–Rebuild
 
-Trie::~Trie() {
-  delete impl_;
-}
+Summary
+  Pull out all keys from both tries (they come out sorted because add() enforces
+  lexicographic order), merge the two sorted lists while removing duplicates,
+  then build a new LOUDS trie by inserting the merged keys.
 
-void Trie::add(const string &key) {
-  impl_->add(key);
-}
+Algorithm
+  1) collect_all_keys(trie1) and collect_all_keys(trie2) → two sorted vectors.
+  2) Two-way merge the vectors, skipping equal neighbors (dedupe).
+  3) For each merged key: trie_out.add(key); finally call trie_out.build().
 
-void Trie::build() {
-  impl_->build();
-}
+Complexity (simple terms)
+  Let n1, n2 = number of keys; K1, K2 = total characters across keys in trie1, trie2;
+  Kout = total characters across merged keys; |Eout| = total edges in merged trie.
 
-int64_t Trie::lookup(const string &query) const {
-  return impl_->lookup(query);
-}
+  Time: O(K1 + K2 + Kout + |Eout|)
 
-uint64_t Trie::n_keys() const {
-  return impl_->n_keys();
-}
-
-uint64_t Trie::n_nodes() const {
-  return impl_->n_nodes();
-}
-
-uint64_t Trie::size() const {
-  return impl_->size();
-}
-
-std::vector<std::string> Trie::get_all_keys() const {
-  std::vector<std::string> keys;
-  impl_->collect_all_keys(keys);
-  std::sort(keys.begin(), keys.end());
-  return keys;
-}
-
-// APPROACH 1: Simple Extract-Merge-Rebuild
+  Space: O(K1 + K2 + n1 + n2 + |Eout|)
+*/
 Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
   Trie* merged = new Trie();
   
@@ -521,86 +535,31 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
 }
 
 
-Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
-  Trie* out = new Trie();
-  auto& out_impl   = *out->impl_;
-  auto& out_levels = out_impl.levels_;
-  const auto& L1   = t1.impl_->get_levels();
-  const auto& L2   = t2.impl_->get_levels();
+/*
+Approach 2 — Direct LOUDS merge (linear, no strings)
 
-  out_impl.n_keys_  = 0;
-  out_impl.n_nodes_ = 1; // root
-  out_impl.size_    = 0;
-  out_levels.resize(2);
+Goal
+  Merge two tries by their LOUDS levels directly. We never build full keys.
 
-  if (!L1.empty() && L1[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
-  if (!L2.empty() && L2[0].outs.get(0) && !out_levels[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
+Idea:
+  - For each level (lev) while we still have parents:
+    - For each parent (from trie1 and/or trie2), find its child ranges with child_range().
 
-  struct Pair { bool h1, h2; uint64_t id1, id2; };
-  std::vector<Pair> curr(1, Pair{ !L1.empty(), !L2.empty(), 0, 0 }), next;
+    - Start this parent’s child list in the OUTPUT:
+        - Put a trailing '1' at out.levels[lev+1] (append_parent_one).
+          (Leaf parents keep this '1'; if we add a child, we’ll flip it to 0.)
 
-  for (uint64_t lev = 0; !curr.empty(); ++lev) {
-    if (out_levels.size() <= lev + 1) out_levels.resize(lev + 2);
-    next.clear();
+    - Merge the two sorted child-label lists with two pointers:
+        - For each chosen label:
+            - emit_child(lev, label): flip the last 1 -> 0, then add a 1; append the label; add outs=0.
+            - If this child ends a key in EITHER input, set outs=1 and ++offset at lev+2.
+            - Enqueue the next-level node pair for this child
+              (use the child id from a trie if it exists; if not, mark that side as absent).
 
-    for (size_t pidx = 0; pidx < curr.size(); ++pidx) {
-      const auto& p = curr[pidx];
-
-      struct Child { uint8_t lab; bool h1, h2; uint64_t c1, c2; };
-      std::vector<Child> children;
-
-      if (p.h1) {
-        uint64_t b=0,e=0; child_range(L1, lev, p.id1, b, e);
-        for (uint64_t i = b; i < e; ++i) {
-          uint8_t lab = L1[lev + 1].labels[i];
-          auto it = std::find_if(children.begin(), children.end(),
-                                 [lab](const Child& c){ return c.lab == lab; });
-          if (it == children.end()) children.push_back({lab, true, false, i, 0});
-          else                      { it->h1 = true; it->c1 = i; }
-        }
-      }
-      if (p.h2) {
-        uint64_t b=0,e=0; child_range(L2, lev, p.id2, b, e);
-        for (uint64_t i = b; i < e; ++i) {
-          uint8_t lab = L2[lev + 1].labels[i];
-          auto it = std::find_if(children.begin(), children.end(),
-                                 [lab](const Child& c){ return c.lab == lab; });
-          if (it == children.end()) children.push_back({lab, false, true, 0, i});
-          else                      { it->h2 = true; it->c2 = i; }
-        }
-      }
-
-      append_parent_one(out_levels, lev, (pidx == 0));
-
-      if (children.empty()) {
-        continue;
-      }
-
-      std::sort(children.begin(), children.end(),
-                [](const Child& a, const Child& b){ return a.lab < b.lab; });
-
-      for (const auto& ch : children) {
-        emit_child(out_levels, lev, ch.lab);
-        bool term = (ch.h1 && is_terminal_at(L1, lev + 1, ch.c1))
-                 || (ch.h2 && is_terminal_at(L2, lev + 1, ch.c2));
-        if (term) {
-          Level& here = out_levels[lev + 1];
-          here.outs.set(here.outs.n_bits - 1, 1);
-          if (out_levels.size() <= lev + 2) out_levels.resize(lev + 3);
-          ++out_levels[lev + 2].offset;      
-          ++out_impl.n_keys_;                 
-        }
-        next.push_back(Pair{ ch.h1, ch.h2, ch.c1, ch.c2 });
-        ++out_impl.n_nodes_;                  
-      }
-    }
-    curr.swap(next); 
-  }
-
-  out_impl.build();
-  return out;
-}
-
+Complexity
+  Time: O(|E1| + |E2|) to merge + O(|Eout|) for build().
+  Space: O(level width) transient; output is O(|Eout|).
+*/
 Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
   Trie* out = new Trie();
   auto& out_impl   = *out->impl_;

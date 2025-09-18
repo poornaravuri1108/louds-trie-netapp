@@ -34,13 +34,11 @@ class Trie {
   std::vector<std::string> get_all_keys() const;
 
   static Trie* merge_trie(const Trie& trie1, const Trie& trie2);
-  static Trie* merge_trie_direct_quadratic(const Trie& trie1, const Trie& trie2);
   static Trie* merge_trie_direct_linear(const Trie& trie1, const Trie& trie2);
 
  private:
   TrieImpl *impl_;
 
-  friend class TrieImpl;
 };
 
 }  // namespace louds
