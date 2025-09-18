@@ -248,7 +248,6 @@ void test_performance_comparison() {
     double time1 = duration_cast<microseconds>(end - start).count();
     
     start = high_resolution_clock::now();
-    start = high_resolution_clock::now();
     Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
     end = high_resolution_clock::now();
     double time2 = duration_cast<microseconds>(end - start).count();

@@ -405,7 +405,7 @@ Trie::~Trie() {
 }
 
 void Trie::add(const string &key) {
-  return impl_->add(key);
+  impl_->add(key);
 }
 
 void Trie::build() {
@@ -445,6 +445,8 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
 
   // std::sort(keys1.begin(), keys1.end());
   // std::sort(keys2.begin(), keys2.end());
+  assert(std::is_sorted(keys1.begin(), keys1.end()));
+  assert(std::is_sorted(keys2.begin(), keys2.end()));
   
   vector<string> merged_keys;
   merged_keys.reserve(keys1.size() + keys2.size());
@@ -504,6 +506,15 @@ Trie* Trie::merge_trie_efficient(const Trie& trie1, const Trie& trie2) {
   
   const auto& levels1 = trie1.impl_->get_levels();
   const auto& levels2 = trie2.impl_->get_levels();
+
+  if (!levels1.empty() && levels1[0].outs.get(0)) {
+    all_keys.emplace_back("");
+    added_keys.insert("");
+  }
+  if (!levels2.empty() && levels2[0].outs.get(0) && !added_keys.count("")) {
+    all_keys.emplace_back("");
+    added_keys.insert("");
+  }
   
   while (!pq.empty()) {
     TraversalNode curr = pq.top();
