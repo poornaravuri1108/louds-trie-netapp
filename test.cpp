@@ -388,6 +388,16 @@ static void test_merge_from_files(const string& file1, const string& file2) {
     print_approach("Approach 1 (Extract-Merge-Rebuild):", t1, *merged1, "μs");
     print_approach("Approach 2 (Direct LOUDS Merge linear):", t2, *merged2, "μs");
 
+    // vector<string> merged2_keys = merged2->get_all_keys();
+    // vector<string> merged1_keys = merged1->get_all_keys();
+    // for (const auto& k : merged2_keys) {
+    //     std::cout << k << std::endl;
+    // }
+    // std::cout << "----------------" << std::endl;
+    // for (const auto& k : merged1_keys) {
+    //     std::cout << k << std::endl;
+    // }
+
     vector<string> expected;
     expected.reserve(keys1.size() + keys2.size());
     set_union(keys1.begin(), keys1.end(), keys2.begin(), keys2.end(), back_inserter(expected));

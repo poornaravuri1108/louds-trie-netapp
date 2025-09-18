@@ -481,7 +481,7 @@ Summary
   then build a new LOUDS trie by inserting the merged keys.
 
 Algorithm
-  1) collect_all_keys(trie1) and collect_all_keys(trie2) → two sorted vectors.
+  1) collect_all_keys(trie1) and collect_all_keys(trie2) -> two sorted vectors.
   2) Two-way merge the vectors, skipping equal neighbors (dedupe).
   3) For each merged key: trie_out.add(key); finally call trie_out.build().
 
@@ -536,7 +536,7 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
 
 
 /*
-Approach 2 — Direct LOUDS merge (linear, no strings)
+Approach 2 — Direct LOUDS merge (no strings)
 
 Goal
   Merge two tries by their LOUDS levels directly. We never build full keys.
