@@ -165,6 +165,11 @@ void test_common_prefixes() {
     trie2.build();
     
     Trie* merged1 = Trie::merge_trie(trie1, trie2);
+    std::vector<std::string> keys = merged1->get_all_keys();
+    std::cout << "Keys in merged trie:" << std::endl;
+    for (const auto& key : keys) {
+        std::cout << "  " << key << std::endl;
+    }
     
     cout << "Approach 1: " << merged1->n_keys() << " keys, "
          << merged1->n_nodes() << " nodes" << endl;
@@ -233,6 +238,12 @@ void test_performance_comparison() {
     Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
     end = high_resolution_clock::now();
     double time3 = duration_cast<microseconds>(end - start).count();
+
+    std::vector<std::string> keys = merged3->get_all_keys();
+    std::cout << "Keys in merged3 trie:" << std::endl;
+    for (const auto& key : keys) {
+        std::cout << "  " << key << std::endl;
+    }
     
     cout << "\nResults:" << endl;
     cout << "  Approach 1 (Extract-Merge-Rebuild): " << time1 << " μs" << endl;
