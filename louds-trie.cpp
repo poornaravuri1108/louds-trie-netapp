@@ -520,10 +520,10 @@ Trie* Trie::merge_trie_efficient(const Trie& trie1, const Trie& trie2) {
     TraversalNode curr = pq.top();
     pq.pop();
     
-    if (!curr.path.empty() && curr.trie_idx == 1 && 
-        added_keys.find(curr.path) != added_keys.end()) {
-      continue;
-    }
+    // if (!curr.path.empty() && curr.trie_idx == 1 && 
+    //     added_keys.find(curr.path) != added_keys.end()) {
+    //   continue;
+    // }
     
     const vector<Level>& levels = (curr.trie_idx == 0) ? levels1 : levels2;
     
