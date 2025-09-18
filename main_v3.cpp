@@ -171,8 +171,8 @@ void test_common_prefixes() {
     
     Trie trie2;
     trie2.add("car");
-    trie2.add("cargo");
     trie2.add("career");
+    trie2.add("cargo");
     trie2.add("carrot");
     trie2.add("carry");
     trie2.build();
