@@ -35,11 +35,15 @@ class Trie {
 
   static Trie* merge_trie(const Trie& trie1, const Trie& trie2);
   static Trie* merge_trie_efficient(const Trie& trie1, const Trie& trie2);
+  static Trie* merge_trie_direct_quadratic(const Trie& trie1, const Trie& trie2);
+  static Trie* merge_trie_direct_linear(const Trie& trie1, const Trie& trie2);
 
  private:
   TrieImpl *impl_;
 
   friend class TrieImpl;
+  friend Trie* Trie::merge_trie_direct_quadratic(const Trie& trie1, const Trie& trie2);
+  friend Trie* Trie::merge_trie_direct_linear(const Trie& trie1, const Trie& trie2);
 };
 
 }  // namespace louds

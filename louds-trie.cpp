@@ -181,6 +181,53 @@ uint64_t Level::size() const {
   return louds.size() + outs.size() + labels.size();
 }
 
+inline void child_range(const std::vector<Level>& Lv,
+  uint64_t lev, uint64_t node_id,
+  uint64_t& b, uint64_t& e) {
+b = e = 0;
+if (lev + 1 >= Lv.size()) return;
+const Level& ch = Lv[lev + 1];
+if (ch.louds.n_bits == 0) return;
+
+uint64_t start_pos = (node_id != 0) ? (ch.louds.select(node_id - 1) + 1) : 0;
+uint64_t pos = start_pos;
+while (pos < ch.louds.n_bits && !ch.louds.get(pos)) ++pos;   // scan 0-run
+uint64_t k = pos - start_pos;                                // #children
+b = start_pos - node_id;                                     // first child label index
+e = b + k;                                                   // one past last
+}
+
+inline bool is_terminal_at(const std::vector<Level>& Lv, uint64_t lev_plus_1, uint64_t child_id) {
+if (lev_plus_1 >= Lv.size()) return false;
+const Level& L = Lv[lev_plus_1];
+return (child_id < L.outs.n_bits) && (L.outs.get(child_id) != 0);
+}
+
+// Append the parent's "1" for the next level, except for the first parent at root
+inline void append_parent_one(std::vector<Level>& out_levels, uint64_t lev, bool is_first_parent_at_level) {
+const uint64_t target = lev + 1;
+if (out_levels.size() <= target) out_levels.resize(target + 1);
+// For level 1, the constructor already placed a single '1' that should serve the first (root) parent.
+if (lev == 0 && is_first_parent_at_level) return;
+out_levels[target].louds.add(1);
+}
+
+// Emit one child under parent at level `lev` into out_levels[lev+1]
+inline void emit_child(std::vector<Level>& out_levels, uint64_t lev, uint8_t label) {
+Level& nextL = out_levels[lev + 1];
+if (nextL.louds.n_bits == 0) {
+// fresh level: start with "01" (one child)
+nextL.louds.add(0);
+nextL.louds.add(1);
+} else {
+// extend the current parent's 0-run: flip the last 1 to 0, then append a 1
+nextL.louds.set(nextL.louds.n_bits - 1, 0);
+nextL.louds.add(1);
+}
+nextL.labels.push_back(label);
+nextL.outs.add(0); // default, possibly set to 1 by caller
+}
+
 }  // namespace
 
 class TrieImpl {
@@ -575,5 +622,170 @@ Trie* Trie::merge_trie_efficient(const Trie& trie1, const Trie& trie2) {
   
   return merged;
 }
+
+Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
+  Trie* out = new Trie();
+  auto& out_impl   = *out->impl_;
+  auto& out_levels = out_impl.levels_;
+  const auto& L1   = t1.impl_->get_levels();
+  const auto& L2   = t2.impl_->get_levels();
+
+  // Reset counters; keep constructor’s root sentinels intact.
+  out_impl.n_keys_  = 0;
+  out_impl.n_nodes_ = 1; // root
+  out_impl.size_    = 0;
+  out_levels.resize(2);
+
+  // Empty string at root?
+  if (!L1.empty() && L1[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
+  if (!L2.empty() && L2[0].outs.get(0) && !out_levels[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
+
+  struct Pair { bool h1, h2; uint64_t id1, id2; };
+  std::vector<Pair> curr(1, Pair{ !L1.empty(), !L2.empty(), 0, 0 }), next;
+
+  for (uint64_t lev = 0; !curr.empty(); ++lev) {
+    if (out_levels.size() <= lev + 1) out_levels.resize(lev + 2);
+    next.clear();
+
+    for (size_t pidx = 0; pidx < curr.size(); ++pidx) {
+      const auto& p = curr[pidx];
+
+      // Build union of child labels (quadratic dedupe)
+      struct Child { uint8_t lab; bool h1, h2; uint64_t c1, c2; };
+      std::vector<Child> children;
+
+      if (p.h1) {
+        uint64_t b=0,e=0; child_range(L1, lev, p.id1, b, e);
+        for (uint64_t i = b; i < e; ++i) {
+          uint8_t lab = L1[lev + 1].labels[i];
+          auto it = std::find_if(children.begin(), children.end(),
+                                 [lab](const Child& c){ return c.lab == lab; });
+          if (it == children.end()) children.push_back({lab, true, false, i, 0});
+          else                      { it->h1 = true; it->c1 = i; }
+        }
+      }
+      if (p.h2) {
+        uint64_t b=0,e=0; child_range(L2, lev, p.id2, b, e);
+        for (uint64_t i = b; i < e; ++i) {
+          uint8_t lab = L2[lev + 1].labels[i];
+          auto it = std::find_if(children.begin(), children.end(),
+                                 [lab](const Child& c){ return c.lab == lab; });
+          if (it == children.end()) children.push_back({lab, false, true, 0, i});
+          else                      { it->h2 = true; it->c2 = i; }
+        }
+      }
+
+      // Each parent contributes one trailing '1' in next level.
+      append_parent_one(out_levels, lev, /*is_first_parent_at_level=*/(pidx == 0));
+
+      if (children.empty()) {
+        continue; // zero-degree parent -> just the '1' we appended
+      }
+
+      // Keep children labels sorted
+      std::sort(children.begin(), children.end(),
+                [](const Child& a, const Child& b){ return a.lab < b.lab; });
+
+      // Emit children in label order
+      for (const auto& ch : children) {
+        emit_child(out_levels, lev, ch.lab);
+        bool term = (ch.h1 && is_terminal_at(L1, lev + 1, ch.c1))
+                 || (ch.h2 && is_terminal_at(L2, lev + 1, ch.c2));
+        if (term) {
+          Level& here = out_levels[lev + 1];
+          here.outs.set(here.outs.n_bits - 1, 1);
+          if (out_levels.size() <= lev + 2) out_levels.resize(lev + 3);
+          ++out_levels[lev + 2].offset;      // mirror builder: bump next level’s offset
+          ++out_impl.n_keys_;                 // track total keys
+        }
+        next.push_back(Pair{ ch.h1, ch.h2, ch.c1, ch.c2 });
+        ++out_impl.n_nodes_;                  // one new node created
+      }
+    }
+  }
+
+  out_impl.build(); // rank/select + size & cumulative offsets
+  return out;
+}
+
+Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
+  Trie* out = new Trie();
+  auto& out_impl   = *out->impl_;
+  auto& out_levels = out_impl.levels_;
+  const auto& L1   = t1.impl_->get_levels();
+  const auto& L2   = t2.impl_->get_levels();
+
+  // Reset counters; keep constructor’s root sentinels intact.
+  out_impl.n_keys_  = 0;
+  out_impl.n_nodes_ = 1; // root
+  out_impl.size_    = 0;
+  out_levels.resize(2);
+
+  // Empty string at root?
+  if (!L1.empty() && L1[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
+  if (!L2.empty() && L2[0].outs.get(0) && !out_levels[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
+
+  struct Pair { bool h1, h2; uint64_t id1, id2; };
+  std::vector<Pair> curr(1, Pair{ !L1.empty(), !L2.empty(), 0, 0 }), next;
+
+  for (uint64_t lev = 0; !curr.empty(); ++lev) {
+    if (out_levels.size() <= lev + 1) out_levels.resize(lev + 2);
+    next.clear();
+
+    for (size_t pidx = 0; pidx < curr.size(); ++pidx) {
+      const auto& p = curr[pidx];
+
+      // Two-pointer merge over sorted child runs
+      uint64_t b1=0,e1=0, b2=0,e2=0;
+      if (p.h1) child_range(L1, lev, p.id1, b1, e1);
+      if (p.h2) child_range(L2, lev, p.id2, b2, e2);
+
+      // Each parent contributes one trailing '1' in next level.
+      append_parent_one(out_levels, lev, /*is_first_parent_at_level=*/(pidx == 0));
+
+      if (b1 == e1 && b2 == e2) {
+        continue; // zero-degree parent -> just the '1' we appended
+      }
+
+      while (b1 < e1 || b2 < e2) {
+        bool take1=false, take2=false;
+        uint8_t lab=0;
+
+        if (b1 < e1 && b2 < e2) {
+          uint8_t l1 = L1[lev + 1].labels[b1];
+          uint8_t l2 = L2[lev + 1].labels[b2];
+          if (l1 == l2) { lab = l1; take1 = take2 = true; }
+          else if (l1 < l2) { lab = l1; take1 = true; }
+          else               { lab = l2; take2 = true; }
+        } else if (b1 < e1) { lab = L1[lev + 1].labels[b1]; take1 = true; }
+        else                { lab = L2[lev + 1].labels[b2]; take2 = true; }
+
+        emit_child(out_levels, lev, lab);
+
+        // Terminal?
+        bool term = (take1 && is_terminal_at(L1, lev + 1, b1))
+                 || (take2 && is_terminal_at(L2, lev + 1, b2));
+        if (term) {
+          Level& here = out_levels[lev + 1];
+          here.outs.set(here.outs.n_bits - 1, 1);
+          if (out_levels.size() <= lev + 2) out_levels.resize(lev + 3);
+          ++out_levels[lev + 2].offset;
+          ++out_impl.n_keys_;
+        }
+
+        next.push_back(Pair{ take1, take2, take1 ? b1 : 0, take2 ? b2 : 0 });
+        ++out_impl.n_nodes_;
+
+        if (take1) ++b1;
+        if (take2) ++b2;
+      }
+    }
+  }
+
+  out_impl.build();
+  return out;
+}
+
+
 
 }  // namespace louds

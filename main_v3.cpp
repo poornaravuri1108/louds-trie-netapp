@@ -72,17 +72,32 @@ void test_basic_merge() {
          << merged2->n_nodes() << " nodes, "
          << merged2->size() << " bytes" << endl;
     
+    start = high_resolution_clock::now();
+    Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
+    end = high_resolution_clock::now();
+    double time3 = duration_cast<microseconds>(end - start).count();
+    
+    cout << "Approach 3 (Direct LOUDS Merge):" << endl;
+    cout << "  Time: " << time3 << " μs" << endl;
+    cout << "  Merged: " << merged3->n_keys() << " keys, "
+         << merged3->n_nodes() << " nodes, "
+         << merged3->size() << " bytes" << endl;
+    
     vector<string> expected = {"apple", "apricot", "banana", "blueberry", "cherry", "date"};
     vector<string> unexpected = {"grape", "kiwi", "mango"};
     
     verify_keys(merged1, expected, unexpected);
     verify_keys(merged2, expected, unexpected);
+    verify_keys(merged3, expected, unexpected);
     
     assert(merged1->n_keys() == merged2->n_keys());
     assert(merged1->n_nodes() == merged2->n_nodes());
+    assert(merged1->n_keys() == merged3->n_keys());
+    assert(merged1->n_nodes() == merged3->n_nodes());
     
     delete merged1;
     delete merged2;
+    delete merged3;
     cout << "Basic merge test passed" << endl;
 }
 
@@ -252,18 +267,27 @@ void test_performance_comparison() {
     end = high_resolution_clock::now();
     double time2 = duration_cast<microseconds>(end - start).count();
     
+    start = high_resolution_clock::now();
+    Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
+    end = high_resolution_clock::now();
+    double time3 = duration_cast<microseconds>(end - start).count();
+    
     cout << "\nResults:" << endl;
     cout << "  Approach 1 (Extract-Merge-Rebuild): " << time1 << " μs" << endl;
     cout << "  Approach 2 (Efficient Traversal): " << time2 << " μs" << endl;
+    cout << "  Approach 3 (Direct LOUDS Merge): " << time3 << " μs" << endl;
     cout << "  Speedup: " << (time1 / time2) << "x" << endl;
     cout << "  Merged trie: " << merged1->n_keys() << " keys, "
          << merged1->n_nodes() << " nodes" << endl;
     
     assert(merged1->n_keys() == merged2->n_keys());
     assert(merged1->n_nodes() == merged2->n_nodes());
+    assert(merged1->n_keys() == merged3->n_keys());
+    assert(merged1->n_nodes() == merged3->n_nodes());
     
     delete merged1;
     delete merged2;
+    delete merged3;
     cout << "Performance comparison complete" << endl;
 }
 
@@ -312,6 +336,11 @@ void test_large_scale() {
     end = high_resolution_clock::now();
     double time2 = duration_cast<milliseconds>(end - start).count();
     
+    start = high_resolution_clock::now();
+    Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
+    end = high_resolution_clock::now();
+    double time3 = duration_cast<milliseconds>(end - start).count();
+    
     cout << "\nMerge results:" << endl;
     cout << "  Approach 1: " << time1 << " ms, "
          << merged1->n_keys() << " keys, "
@@ -319,15 +348,20 @@ void test_large_scale() {
     cout << "  Approach 2: " << time2 << " ms, "
          << merged2->n_keys() << " keys, "
          << merged2->size() << " bytes" << endl;
+    cout << "  Approach 3: " << time3 << " ms, "
+         << merged3->n_keys() << " keys, "
+         << merged3->size() << " bytes" << endl;
     
     for (int i = 0; i < 100; i += 10) {
         string key = "a" + to_string(i);
         assert(merged1->lookup(key) != -1);
         assert(merged2->lookup(key) != -1);
+        assert(merged3->lookup(key) != -1);
     }
     
     delete merged1;
     delete merged2;
+    delete merged3;
     cout << "Large scale test passed" << endl;
 }
 
