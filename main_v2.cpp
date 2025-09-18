@@ -144,14 +144,6 @@ void test_merge_functionality() {
     }
     cout << endl;
     assert(merged->n_keys() == 6);  // car, card, care, careful, cargo, career
-
-    vector<string> merged_keys = merged->get_all_keys();
-    cout << "Keys in merged trie: ";
-    for (size_t i = 0; i < merged_keys.size(); ++i) {
-      if (i > 0) cout << ", ";
-      cout << "\"" << merged_keys[i] << "\"";
-    }
-    cout << endl;
     
     assert(merged->lookup("car") != -1);
     assert(merged->lookup("card") != -1);
