@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <vector>
+#include <algorithm>
 
 namespace louds {
 namespace {
@@ -199,12 +200,21 @@ class TrieImpl {
     return size_;
   }
 
+  void collect_all_keys(vector<string>& keys) const;
+  const vector<Level>& get_levels() const { return levels_; }
+
  private:
   vector<Level> levels_;
   uint64_t n_keys_;
   uint64_t n_nodes_;
   uint64_t size_;
   string last_key_;
+
+  void collect_keys_recursive(vector<string>& keys, uint64_t node_id, 
+    uint64_t level, string& prefix) const;
+
+  // Friend declaration for merge functions
+  friend Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2);
 };
 
 TrieImpl::TrieImpl()
@@ -324,9 +334,81 @@ int64_t TrieImpl::lookup(const string &query) const {
   }
   const Level &level = levels_[query.length()];
   if (!level.outs.get(node_id)) {
-    return false;
+    return -1;
   }
   return level.offset + level.outs.rank(node_id);
+}
+
+// Helper method to recursively collect all keys from the trie
+void TrieImpl::collect_keys_recursive(vector<string>& keys, uint64_t node_id, 
+  uint64_t level_idx, string& prefix) const {
+  
+  // Check for empty string (special case at root)
+  if (level_idx == 0 && levels_[0].outs.get(0)) {
+    keys.push_back("");  // Empty string is a key
+  }
+  
+  if (level_idx >= levels_.size()) {
+    return;
+  }
+  
+  const Level& level = levels_[level_idx];
+  
+  // Check if this node is terminal (has an output)
+  if (level_idx > 0 && node_id < level.outs.n_bits && level.outs.get(node_id)) {
+    keys.push_back(prefix);
+  }
+  
+  // If we're at a leaf level, return
+  if (level_idx + 1 >= levels_.size()) {
+    return;
+  }
+  
+  // Find children of this node in the LOUDS structure
+  const Level& child_level = levels_[level_idx + 1];
+  
+  // Safeguard against empty levels
+  if (child_level.louds.n_bits == 0) {
+    return;
+  }
+  
+  uint64_t child_pos;
+  
+  // Use select to find where this node's children start
+  if (node_id != 0) {
+    // For non-root nodes, use select to find position
+    // Make sure the select index is valid
+    if (node_id - 1 >= child_level.louds.rank(child_level.louds.n_bits)) {
+      return;  // No children for this node
+    }
+    child_pos = child_level.louds.select(node_id - 1) + 1;
+  } else {
+    // Root's children start at position 0
+    child_pos = 0;
+  }
+  
+  // Calculate the first child's node ID
+  uint64_t child_id = child_pos - node_id;
+  
+  // Iterate through all children (0 bits indicate siblings, 1 bit ends the sibling list)
+  while (child_pos < child_level.louds.n_bits && !child_level.louds.get(child_pos)) {
+    if (child_id < child_level.labels.size()) {
+      // Add this child's label to the prefix
+      prefix.push_back(child_level.labels[child_id]);
+      // Recursively collect from this child
+      collect_keys_recursive(keys, child_id, level_idx + 1, prefix);
+      // Remove the label when backtracking
+      prefix.pop_back();
+    }
+    child_pos++;
+    child_id++;
+  }
+}
+
+// Public wrapper for key collection
+void TrieImpl::collect_all_keys(vector<string>& keys) const {
+string prefix;
+collect_keys_recursive(keys, 0, 0, prefix);
 }
 
 Trie::Trie() : impl_(new TrieImpl) {}
@@ -357,6 +439,52 @@ uint64_t Trie::n_nodes() const {
 
 uint64_t Trie::size() const {
   return impl_->size();
+}
+
+// ============================================================================
+// APPROACH 1: Simple Extract-Merge-Rebuild
+// ============================================================================
+Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
+  Trie* merged = new Trie();
+  
+  // Step 1: Extract all keys from both tries
+  vector<string> keys1, keys2;
+  trie1.impl_->collect_all_keys(keys1);
+  trie2.impl_->collect_all_keys(keys2);
+  
+  // Step 2: Merge the two sorted lists (both are already sorted from LOUDS traversal)
+  vector<string> merged_keys;
+  merged_keys.reserve(keys1.size() + keys2.size());
+  
+  size_t i = 0, j = 0;
+  while (i < keys1.size() && j < keys2.size()) {
+    if (keys1[i] < keys2[j]) {
+      merged_keys.push_back(keys1[i++]);
+    } else if (keys1[i] > keys2[j]) {
+      merged_keys.push_back(keys2[j++]);
+    } else {
+      // Duplicate key, add only once
+      merged_keys.push_back(keys1[i]);
+      i++;
+      j++;
+    }
+  }
+  
+  // Add remaining keys from either list
+  while (i < keys1.size()) {
+    merged_keys.push_back(keys1[i++]);
+  }
+  while (j < keys2.size()) {
+    merged_keys.push_back(keys2[j++]);
+  }
+  
+  // Step 3: Build new LOUDS trie with merged keys
+  for (const string& key : merged_keys) {
+    merged->add(key);
+  }
+  merged->build();
+  
+  return merged;
 }
 
 }  // namespace louds
