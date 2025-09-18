@@ -10,8 +10,7 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
-#include <queue>
-#include <set>
+
 
 namespace louds {
 namespace {
@@ -487,8 +486,6 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
   trie1.impl_->collect_all_keys(keys1);
   trie2.impl_->collect_all_keys(keys2);
 
-  // std::sort(keys1.begin(), keys1.end());
-  // std::sort(keys2.begin(), keys2.end());
   assert(std::is_sorted(keys1.begin(), keys1.end()));
   assert(std::is_sorted(keys2.begin(), keys2.end()));
   

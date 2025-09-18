@@ -48,7 +48,7 @@ void test_merge_functionality() {
     assert(merged->lookup("fig") != -1);
     assert(merged->lookup("grape") == -1);
     
-    cout << "✓ Test 1 passed!" << endl;
+    cout << "Test 1 passed!" << endl;
     delete merged;
   }
   
