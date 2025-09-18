@@ -35,6 +35,14 @@ void test_merge_functionality() {
     // Merge
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     cout << "Merged: " << merged->n_keys() << " keys, " << merged->n_nodes() << " nodes" << endl;
+
+    vector<string> merged_keys = merged->get_all_keys();
+    cout << "Keys in merged trie: ";
+    for (size_t i = 0; i < merged_keys.size(); ++i) {
+      if (i > 0) cout << ", ";
+      cout << "\"" << merged_keys[i] << "\"";
+    }
+    cout << endl;
     
     // Verify all keys are present
     assert(merged->lookup("apple") != -1);
@@ -126,6 +134,14 @@ void test_merge_functionality() {
     louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
     cout << "Merged: " << merged->n_keys() << " keys, " << merged->n_nodes() << " nodes" << endl;
     assert(merged->n_keys() == 6);  // car, card, care, careful, cargo, career
+
+    vector<string> merged_keys = merged->get_all_keys();
+    cout << "Keys in merged trie: ";
+    for (size_t i = 0; i < merged_keys.size(); ++i) {
+      if (i > 0) cout << ", ";
+      cout << "\"" << merged_keys[i] << "\"";
+    }
+    cout << endl;
     
     // Verify all keys
     assert(merged->lookup("car") != -1);
