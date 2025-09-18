@@ -184,48 +184,43 @@ uint64_t Level::size() const {
 inline void child_range(const std::vector<Level>& Lv,
   uint64_t lev, uint64_t node_id,
   uint64_t& b, uint64_t& e) {
-b = e = 0;
-if (lev + 1 >= Lv.size()) return;
-const Level& ch = Lv[lev + 1];
-if (ch.louds.n_bits == 0) return;
+  b = e = 0;
+  if (lev + 1 >= Lv.size()) return;
+  const Level& ch = Lv[lev + 1];
+  if (ch.louds.n_bits == 0) return;
 
-uint64_t start_pos = (node_id != 0) ? (ch.louds.select(node_id - 1) + 1) : 0;
-uint64_t pos = start_pos;
-while (pos < ch.louds.n_bits && !ch.louds.get(pos)) ++pos;   // scan 0-run
-uint64_t k = pos - start_pos;                                // #children
-b = start_pos - node_id;                                     // first child label index
-e = b + k;                                                   // one past last
+  uint64_t start_pos = (node_id != 0) ? (ch.louds.select(node_id - 1) + 1) : 0;
+  uint64_t pos = start_pos;
+  while (pos < ch.louds.n_bits && !ch.louds.get(pos)) ++pos;  
+  uint64_t k = pos - start_pos;                                
+  b = start_pos - node_id;                                     
+  e = b + k;                                                   
 }
 
 inline bool is_terminal_at(const std::vector<Level>& Lv, uint64_t lev_plus_1, uint64_t child_id) {
-if (lev_plus_1 >= Lv.size()) return false;
-const Level& L = Lv[lev_plus_1];
-return (child_id < L.outs.n_bits) && (L.outs.get(child_id) != 0);
+  if (lev_plus_1 >= Lv.size()) return false;
+  const Level& L = Lv[lev_plus_1];
+  return (child_id < L.outs.n_bits) && (L.outs.get(child_id) != 0);
 }
 
-// Append the parent's "1" for the next level, except for the first parent at root
 inline void append_parent_one(std::vector<Level>& out_levels, uint64_t lev, bool is_first_parent_at_level) {
-const uint64_t target = lev + 1;
-if (out_levels.size() <= target) out_levels.resize(target + 1);
-// For level 1, the constructor already placed a single '1' that should serve the first (root) parent.
-if (lev == 0 && is_first_parent_at_level) return;
-out_levels[target].louds.add(1);
+  const uint64_t target = lev + 1;
+  if (out_levels.size() <= target) out_levels.resize(target + 1);
+  if (lev == 0 && is_first_parent_at_level) return;
+  out_levels[target].louds.add(1);
 }
 
-// Emit one child under parent at level `lev` into out_levels[lev+1]
 inline void emit_child(std::vector<Level>& out_levels, uint64_t lev, uint8_t label) {
-Level& nextL = out_levels[lev + 1];
-if (nextL.louds.n_bits == 0) {
-// fresh level: start with "01" (one child)
-nextL.louds.add(0);
-nextL.louds.add(1);
-} else {
-// extend the current parent's 0-run: flip the last 1 to 0, then append a 1
-nextL.louds.set(nextL.louds.n_bits - 1, 0);
-nextL.louds.add(1);
-}
-nextL.labels.push_back(label);
-nextL.outs.add(0); // default, possibly set to 1 by caller
+  Level& nextL = out_levels[lev + 1];
+  if (nextL.louds.n_bits == 0) {
+    nextL.louds.add(0);
+    nextL.louds.add(1);
+  } else {
+    nextL.louds.set(nextL.louds.n_bits - 1, 0);
+    nextL.louds.add(1);
+  }
+  nextL.labels.push_back(label);
+  nextL.outs.add(0);
 }
 
 }  // namespace
@@ -528,102 +523,6 @@ Trie* Trie::merge_trie(const Trie& trie1, const Trie& trie2) {
   return merged;
 }
 
-Trie* Trie::merge_trie_efficient(const Trie& trie1, const Trie& trie2) {
-  Trie* merged = new Trie();
-  
-  struct TraversalNode {
-    uint64_t node_id;    
-    uint64_t level;      
-    uint64_t trie_idx;   
-    string path;         
-    
-    TraversalNode(uint64_t n, uint64_t l, uint64_t t, const string& p)
-      : node_id(n), level(l), trie_idx(t), path(p) {}
-  };
-  
-  auto cmp = [](const TraversalNode& a, const TraversalNode& b) {
-    if (a.path != b.path) return a.path > b.path;  
-    return a.trie_idx > b.trie_idx;  
-  };
-  priority_queue<TraversalNode, vector<TraversalNode>, decltype(cmp)> pq(cmp);
-  
-  pq.push(TraversalNode(0, 0, 0, ""));
-  pq.push(TraversalNode(0, 0, 1, ""));
-  
-  set<string> added_keys; 
-  vector<string> all_keys;
-  
-  const auto& levels1 = trie1.impl_->get_levels();
-  const auto& levels2 = trie2.impl_->get_levels();
-
-  if (!levels1.empty() && levels1[0].outs.get(0)) {
-    all_keys.emplace_back("");
-    added_keys.insert("");
-  }
-  if (!levels2.empty() && levels2[0].outs.get(0) && !added_keys.count("")) {
-    all_keys.emplace_back("");
-    added_keys.insert("");
-  }
-  
-  while (!pq.empty()) {
-    TraversalNode curr = pq.top();
-    pq.pop();
-    
-    // if (!curr.path.empty() && curr.trie_idx == 1 && 
-    //     added_keys.find(curr.path) != added_keys.end()) {
-    //   continue;
-    // }
-    
-    const vector<Level>& levels = (curr.trie_idx == 0) ? levels1 : levels2;
-    
-    if (curr.level > 0 && curr.level < levels.size()) {
-      const Level& level = levels[curr.level];
-      if (curr.node_id < level.outs.n_bits && level.outs.get(curr.node_id)) {
-        if (added_keys.find(curr.path) == added_keys.end()) {
-          all_keys.push_back(curr.path);
-          added_keys.insert(curr.path);
-        }
-      }
-    }
-    
-    if (curr.level + 1 < levels.size()) {
-      const Level& child_level = levels[curr.level + 1];
-      
-      uint64_t child_pos;
-      if (curr.node_id != 0) {
-        child_pos = child_level.louds.select(curr.node_id - 1) + 1;
-      } else {
-        child_pos = 0;
-      }
-      
-      uint64_t child_id = child_pos - curr.node_id;
-      
-      while (child_pos < child_level.louds.n_bits && 
-             !child_level.louds.get(child_pos)) {
-        if (child_id < child_level.labels.size()) {
-          char label = child_level.labels[child_id];
-          pq.push(TraversalNode(
-            child_id, 
-            curr.level + 1, 
-            curr.trie_idx, 
-            curr.path + label
-          ));
-        }
-        child_pos++;
-        child_id++;
-      }
-    }
-  }
-  
-  sort(all_keys.begin(), all_keys.end());
-  
-  for (const string& key : all_keys) {
-    merged->add(key);
-  }
-  merged->build();
-  
-  return merged;
-}
 
 Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
   Trie* out = new Trie();

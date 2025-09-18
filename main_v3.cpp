@@ -62,17 +62,6 @@ void test_basic_merge() {
          << merged1->size() << " bytes" << endl;
     
     start = high_resolution_clock::now();
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
-    end = high_resolution_clock::now();
-    double time2 = duration_cast<microseconds>(end - start).count();
-    
-    cout << "Approach 2 (Efficient Traversal):" << endl;
-    cout << "  Time: " << time2 << " μs" << endl;
-    cout << "  Merged: " << merged2->n_keys() << " keys, "
-         << merged2->n_nodes() << " nodes, "
-         << merged2->size() << " bytes" << endl;
-    
-    start = high_resolution_clock::now();
     Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
     end = high_resolution_clock::now();
     double time3 = duration_cast<microseconds>(end - start).count();
@@ -87,16 +76,12 @@ void test_basic_merge() {
     vector<string> unexpected = {"grape", "kiwi", "mango"};
     
     verify_keys(merged1, expected, unexpected);
-    verify_keys(merged2, expected, unexpected);
     verify_keys(merged3, expected, unexpected);
     
-    assert(merged1->n_keys() == merged2->n_keys());
-    assert(merged1->n_nodes() == merged2->n_nodes());
     assert(merged1->n_keys() == merged3->n_keys());
     assert(merged1->n_nodes() == merged3->n_nodes());
     
     delete merged1;
-    delete merged2;
     delete merged3;
     cout << "Basic merge test passed" << endl;
 }
@@ -119,20 +104,15 @@ void test_overlapping_keys() {
     trie2.build();
     
     Trie* merged1 = Trie::merge_trie(trie1, trie2);
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
     
     cout << "Approach 1: " << merged1->n_keys() << " keys (should be 6)" << endl;
-    cout << "Approach 2: " << merged2->n_keys() << " keys (should be 6)" << endl;
     
     vector<string> expected = {"apple", "banana", "cherry", "date", "elderberry", "fig"};
     verify_keys(merged1, expected, {});
-    verify_keys(merged2, expected, {});
     
     assert(merged1->n_keys() == 6);
-    assert(merged2->n_keys() == 6);
     
     delete merged1;
-    delete merged2;
     cout << "Overlapping keys test passed" << endl;
 }
 
@@ -149,27 +129,19 @@ void test_empty_merge() {
     trie2.build();
     
     Trie* merged1 = Trie::merge_trie(trie1, trie2);
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
     
     assert(merged1->n_keys() == 3);
-    assert(merged2->n_keys() == 3);
     
     Trie* merged3 = Trie::merge_trie(trie2, trie1);
-    Trie* merged4 = Trie::merge_trie_efficient(trie2, trie1);
     
     assert(merged3->n_keys() == 3);
-    assert(merged4->n_keys() == 3);
     
     vector<string> expected = {"alpha", "beta", "gamma"};
     verify_keys(merged1, expected, {});
-    verify_keys(merged2, expected, {});
     verify_keys(merged3, expected, {});
-    verify_keys(merged4, expected, {});
     
     delete merged1;
-    delete merged2;
     delete merged3;
-    delete merged4;
     cout << "Empty merge test passed" << endl;
 }
 
@@ -193,12 +165,10 @@ void test_common_prefixes() {
     trie2.build();
     
     Trie* merged1 = Trie::merge_trie(trie1, trie2);
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
     
     cout << "Approach 1: " << merged1->n_keys() << " keys, "
          << merged1->n_nodes() << " nodes" << endl;
-    cout << "Approach 2: " << merged2->n_keys() << " keys, "
-         << merged2->n_nodes() << " nodes" << endl;
+
     
     vector<string> expected = {
         "car", "card", "care", "career", "careful", 
@@ -206,13 +176,10 @@ void test_common_prefixes() {
     };
     
     verify_keys(merged1, expected, {});
-    verify_keys(merged2, expected, {});
     
     assert(merged1->n_keys() == 9);
-    assert(merged2->n_keys() == 9);
     
     delete merged1;
-    delete merged2;
     cout << "Common prefixes test passed" << endl;
 }
 
@@ -263,20 +230,14 @@ void test_performance_comparison() {
     double time1 = duration_cast<microseconds>(end - start).count();
     
     start = high_resolution_clock::now();
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
-    end = high_resolution_clock::now();
-    double time2 = duration_cast<microseconds>(end - start).count();
-    
-    start = high_resolution_clock::now();
     Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
     end = high_resolution_clock::now();
     double time3 = duration_cast<microseconds>(end - start).count();
     
     cout << "\nResults:" << endl;
     cout << "  Approach 1 (Extract-Merge-Rebuild): " << time1 << " μs" << endl;
-    cout << "  Approach 2 (Efficient Traversal): " << time2 << " μs" << endl;
     cout << "  Approach 3 (Direct LOUDS Merge): " << time3 << " μs" << endl;
-    cout << "  Speedup: " << (time1 / time2) << "x" << endl;
+    cout << "  Speedup: " << (time1 / time3) << "x" << endl;
     cout << "  Merged trie: " << merged1->n_keys() << " keys, "
          << merged1->n_nodes() << " nodes" << endl;
     
@@ -332,12 +293,7 @@ void test_large_scale() {
     double time1 = duration_cast<milliseconds>(end - start).count();
     
     start = high_resolution_clock::now();
-    Trie* merged2 = Trie::merge_trie_efficient(trie1, trie2);
-    end = high_resolution_clock::now();
-    double time2 = duration_cast<milliseconds>(end - start).count();
-    
-    start = high_resolution_clock::now();
-    Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
+    Trie* merged2 = Trie::merge_trie_direct_linear(trie1, trie2);
     end = high_resolution_clock::now();
     double time3 = duration_cast<milliseconds>(end - start).count();
     
@@ -345,23 +301,18 @@ void test_large_scale() {
     cout << "  Approach 1: " << time1 << " ms, "
          << merged1->n_keys() << " keys, "
          << merged1->size() << " bytes" << endl;
-    cout << "  Approach 2: " << time2 << " ms, "
+    cout << "  Approach 3: " << time3 << " ms, "
          << merged2->n_keys() << " keys, "
          << merged2->size() << " bytes" << endl;
-    cout << "  Approach 3: " << time3 << " ms, "
-         << merged3->n_keys() << " keys, "
-         << merged3->size() << " bytes" << endl;
     
     for (int i = 0; i < 100; i += 10) {
         string key = "a" + to_string(i);
         assert(merged1->lookup(key) != -1);
         assert(merged2->lookup(key) != -1);
-        assert(merged3->lookup(key) != -1);
     }
     
     delete merged1;
     delete merged2;
-    delete merged3;
     cout << "Large scale test passed" << endl;
 }
 
