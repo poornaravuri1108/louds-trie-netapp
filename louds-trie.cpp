@@ -528,13 +528,11 @@ Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
   const auto& L1   = t1.impl_->get_levels();
   const auto& L2   = t2.impl_->get_levels();
 
-  // Reset counters; keep constructor’s root sentinels intact.
   out_impl.n_keys_  = 0;
   out_impl.n_nodes_ = 1; // root
   out_impl.size_    = 0;
   out_levels.resize(2);
 
-  // Empty string at root?
   if (!L1.empty() && L1[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
   if (!L2.empty() && L2[0].outs.get(0) && !out_levels[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
 
@@ -548,7 +546,6 @@ Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
     for (size_t pidx = 0; pidx < curr.size(); ++pidx) {
       const auto& p = curr[pidx];
 
-      // Build union of child labels (quadratic dedupe)
       struct Child { uint8_t lab; bool h1, h2; uint64_t c1, c2; };
       std::vector<Child> children;
 
@@ -573,18 +570,15 @@ Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
         }
       }
 
-      // Each parent contributes one trailing '1' in next level.
-      append_parent_one(out_levels, lev, /*is_first_parent_at_level=*/(pidx == 0));
+      append_parent_one(out_levels, lev, (pidx == 0));
 
       if (children.empty()) {
-        continue; // zero-degree parent -> just the '1' we appended
+        continue;
       }
 
-      // Keep children labels sorted
       std::sort(children.begin(), children.end(),
                 [](const Child& a, const Child& b){ return a.lab < b.lab; });
 
-      // Emit children in label order
       for (const auto& ch : children) {
         emit_child(out_levels, lev, ch.lab);
         bool term = (ch.h1 && is_terminal_at(L1, lev + 1, ch.c1))
@@ -593,17 +587,17 @@ Trie* Trie::merge_trie_direct_quadratic(const Trie& t1, const Trie& t2) {
           Level& here = out_levels[lev + 1];
           here.outs.set(here.outs.n_bits - 1, 1);
           if (out_levels.size() <= lev + 2) out_levels.resize(lev + 3);
-          ++out_levels[lev + 2].offset;      // mirror builder: bump next level’s offset
-          ++out_impl.n_keys_;                 // track total keys
+          ++out_levels[lev + 2].offset;      
+          ++out_impl.n_keys_;                 
         }
         next.push_back(Pair{ ch.h1, ch.h2, ch.c1, ch.c2 });
-        ++out_impl.n_nodes_;                  // one new node created
+        ++out_impl.n_nodes_;                  
       }
     }
     curr.swap(next); 
   }
 
-  out_impl.build(); // rank/select + size & cumulative offsets
+  out_impl.build();
   return out;
 }
 
@@ -614,13 +608,11 @@ Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
   const auto& L1   = t1.impl_->get_levels();
   const auto& L2   = t2.impl_->get_levels();
 
-  // Reset counters; keep constructor’s root sentinels intact.
   out_impl.n_keys_  = 0;
-  out_impl.n_nodes_ = 1; // root
+  out_impl.n_nodes_ = 1; 
   out_impl.size_    = 0;
   out_levels.resize(2);
 
-  // Empty string at root?
   if (!L1.empty() && L1[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
   if (!L2.empty() && L2[0].outs.get(0) && !out_levels[0].outs.get(0)) { out_levels[0].outs.set(0,1); ++out_levels[1].offset; ++out_impl.n_keys_; }
 
@@ -634,16 +626,15 @@ Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
     for (size_t pidx = 0; pidx < curr.size(); ++pidx) {
       const auto& p = curr[pidx];
 
-      // Two-pointer merge over sorted child runs
       uint64_t b1=0,e1=0, b2=0,e2=0;
       if (p.h1) child_range(L1, lev, p.id1, b1, e1);
       if (p.h2) child_range(L2, lev, p.id2, b2, e2);
 
-      // Each parent contributes one trailing '1' in next level.
-      append_parent_one(out_levels, lev, /*is_first_parent_at_level=*/(pidx == 0));
+      append_parent_one(out_levels, lev, (pidx == 0));
+      append_parent_one(out_levels, lev, (pidx == 0));
 
       if (b1 == e1 && b2 == e2) {
-        continue; // zero-degree parent -> just the '1' we appended
+        continue; 
       }
 
       while (b1 < e1 || b2 < e2) {
@@ -661,7 +652,6 @@ Trie* Trie::merge_trie_direct_linear(const Trie& t1, const Trie& t2) {
 
         emit_child(out_levels, lev, lab);
 
-        // Terminal?
         bool term = (take1 && is_terminal_at(L1, lev + 1, b1))
                  || (take2 && is_terminal_at(L2, lev + 1, b2));
         if (term) {
