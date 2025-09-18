@@ -172,9 +172,9 @@ void test_common_prefixes() {
     }
 
     Trie* merged3 = Trie::merge_trie_direct_linear(trie1, trie2);
-    std::vector<std::string> keys = merged3->get_all_keys();
+    std::vector<std::string> keys3 = merged3->get_all_keys();
     std::cout << "Keys in merged3 trie:" << std::endl;
-    for (const auto& key : keys) {
+    for (const auto& key : keys3) {
         std::cout << "  " << key << std::endl;
     }
     
