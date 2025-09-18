@@ -56,35 +56,5 @@ int main() {
   elapsed = (double)duration_cast<nanoseconds>(end - begin).count();
   cout << "rnd. lookup = " << (elapsed / keys.size()) << " ns/key" << endl;
 
-  // Test merge_trie
-  cout << "\n=== Testing merge_trie ===" << endl;
-  louds::Trie trie1;
-  trie1.add("apple");
-  trie1.add("application");
-  trie1.add("banana");
-  trie1.build();
-  cout << "Trie1: " << trie1.n_keys() << " keys" << endl;
-
-  louds::Trie trie2;
-  trie2.add("apple");  // duplicate
-  trie2.add("apricot");
-  trie2.add("cherry");
-  trie2.build();
-  cout << "Trie2: " << trie2.n_keys() << " keys" << endl;
-
-  louds::Trie* merged = louds::Trie::merge_trie(trie1, trie2);
-  cout << "Merged: " << merged->n_keys() << " keys (expected 5)" << endl;
-
-  // Verify lookups
-  assert(merged->lookup("apple") >= 0);
-  assert(merged->lookup("application") >= 0);
-  assert(merged->lookup("apricot") >= 0);
-  assert(merged->lookup("banana") >= 0);
-  assert(merged->lookup("cherry") >= 0);
-  assert(merged->lookup("notfound") == -1);
-  cout << "All merge tests passed!" << endl;
-
-  delete merged;
-
   return 0;
 }
